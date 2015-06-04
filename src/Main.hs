@@ -32,7 +32,10 @@ class Run a where
     run :: a -> Output
 
 instance Run Command where
-    run c = Just ("Processing command: " ++ show c)
+    run (Wall u)   = Just $ ("WALL: for " ++ show u) ++ show (posts u)
+    run (Read u)   = Just $ show $ posts u
+    run c          = Just ("Processing command: " ++ show c)
+    --run _ = Nothing
 
 users :: [User]
 users = [newUser{ name="Alice" }]
@@ -56,7 +59,10 @@ wallParser = do
     return $ Wall user
 
 readParser :: P.Parsec String () Command
-readParser = Read <$> findUserParser
+--readParser = Read <$> findUserParser <* P.eof
+readParser = do
+    user <- findUserParser
+    return $ Read user
 
 cmd :: Command
 cmd = Wall newUser{ name="foo" }
@@ -64,11 +70,13 @@ cmd = Wall newUser{ name="foo" }
 exitParser :: P.Parsec String () Command
 exitParser = Exit <$ P.try (P.string "exit" <|> P.string "quit")
 
+commandParser = P.try wallParser <|> readParser <|> exitParser
+
 redirect :: IO ()
 redirect = do
     putStr "> "
     input <- getLine
-    let result = parse (P.try readParser <|> wallParser <|> exitParser <* (P.skipMany1 P.space <|> P.eof)) input
+    let result = parse (commandParser <* P.spaces <* P.eof) input
     case result of
         Right command -> do
             let output = run command
