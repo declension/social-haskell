@@ -41,31 +41,22 @@ users :: [User]
 users = [newUser{ name="Alice" }]
 --users = []
 
-usernameParser :: P.Parsec String () String
-usernameParser = P.many1 P.alphaNum
+username :: P.Parsec String () String
+username = P.many1 P.alphaNum
+whitespace     = P.skipMany1 P.space
 
 findUserParser :: P.Parsec String () User
 findUserParser = do
         userName <- P.choice [P.string (name u) | u <- users]
-        --return (fromMaybe (P.unexpected "unknown user") $ find (\u -> name u == userName) users)
         return $ fromJust $ find (\u -> name u == userName) users
 
 wallParser :: P.Parsec String () Command
-wallParser = do
-    --let user = newUser { name="foo" }
-    user <- findUserParser
-    P.skipMany1 P.space
-    P.string "wall"
-    return $ Wall user
+wallParser = Wall <$> findUserParser <* whitespace <* P.string "wall"
 
 readParser :: P.Parsec String () Command
---readParser = Read <$> findUserParser <* P.eof
 readParser = do
     user <- findUserParser
     return $ Read user
-
-cmd :: Command
-cmd = Wall newUser{ name="foo" }
 
 exitParser :: P.Parsec String () Command
 exitParser = Exit <$ P.try (P.string "exit" <|> P.string "quit")
