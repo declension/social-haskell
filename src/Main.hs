@@ -12,7 +12,6 @@ import Data.List (find)
 
 -- Get the Identity monad from here:
 import Control.Monad.Identity()
-{-# ANN module ("HLint: ignore  Redundant bracket"::String) #-}
 
 -- alias Parsec.parse for more concise usage:
 parse rule = P.parse rule "(input)"
@@ -36,6 +35,7 @@ class Run a where
 instance Run Command where
     run (Wall u)     = Just $ ("WALL: for " ++ show u) ++ show (posts u)
     run (Read u)     = Just $ show $ posts u
+    run (Post u s)   = Just $ show $ s : posts u
     run c            = Just ("Processing command: " ++ show c)
 
 users :: [User]
@@ -43,15 +43,22 @@ users = [newUser{ name="Alice" }]
 --users = []
 
 -- Convenience definitions
-username :: P.Parsec String () String
-username = P.many1 P.alphaNum
-whitespace     = P.skipMany1 P.space
+usernameParser :: P.Parsec String () String
+usernameParser = P.many1 P.alphaNum
+whitespace = P.skipMany1 P.space
 
--- Finds a valid, existing user.
+-- Finds a valid, existing user (only!) by looking up the parsed name
 findUserParser :: P.Parsec String () User
 findUserParser = do
-        userName <- P.choice [P.string (name u) | u <- users]
-        return $ fromJust $ find (\u -> name u == userName) users
+        username <- P.choice [P.string (name u) | u <- users]
+        return $ fromJust $ find (\u -> name u == username) users
+
+-- Finds or creates a user based on parsed username.
+findOrCreateUserParser :: P.Parsec String () User
+findOrCreateUserParser = do
+        username <- usernameParser
+        let existing = find (\u -> name u == username) users
+        return $ fromMaybe newUser{name=username} existing
 
 wallParser :: P.Parsec String () Command
 wallParser = Wall <$> findUserParser <* whitespace <* P.string "wall"
@@ -59,10 +66,17 @@ wallParser = Wall <$> findUserParser <* whitespace <* P.string "wall"
 readParser :: P.Parsec String () Command
 readParser = Read <$> findUserParser
 
-exitParser :: P.Parsec String () Command
-exitParser = Exit <$ P.try (P.string "exit" <|> P.string "quit")
+postParser :: P.Parsec String () Command
+postParser = do
+    user <- findOrCreateUserParser
+    whitespace >> P.string "->" >> whitespace
+    message <- P.many1 P.anyToken
+    return $ Post user message
 
-commandParser = P.try wallParser <|> readParser <|> exitParser
+exitParser :: P.Parsec String () Command
+exitParser = Exit <$ (P.string "exit" <|> P.string "quit")
+
+commandParser = P.choice $ map P.try [exitParser, postParser, wallParser, readParser]
 
 redirect :: IO ()
 redirect = do
