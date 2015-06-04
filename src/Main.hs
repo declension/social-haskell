@@ -1,28 +1,23 @@
 module Main where
 
-import Text.Printf (printf)
-import Data.Maybe
+import           System.IO
+--import           Text.Printf (printf)
+--import           Data.Maybe
 import qualified Data.Foldable as Foldable (mapM_)
---import Data.Either.Unwrap
-import Control.Monad (when, unless)
-import System.IO
+import           Control.Monad (unless)
 
--- I import qualified so that it's clear which
--- functions are from the parsec library:
 import qualified Text.Parsec as P
 
--- I am the error message infix operator, used later:
+-- The error message infix operator
 import Text.Parsec ((<?>))
 
--- Imported so we can play with applicative things later.
--- not qualified as mostly infix operators we'll be using.
-import Control.Applicative
+import Control.Applicative ((<$>), (<$), (<*), (<|>))
 
 -- Get the Identity monad from here:
 import Control.Monad.Identity()
 
--- alias Parsec.parse for more concise usage in my examples:
-parse rule = P.parse rule "(source)"
+-- alias Parsec.parse for more concise usage:
+parse rule = P.parse rule "(input)"
 
 data User = User {
           getName       :: String
@@ -51,6 +46,7 @@ exitParser = Exit <$ P.try (P.string "exit" <|> P.string "quit" <?> "An exit tok
 
 redirect :: IO ()
 redirect = do
+    putStr "> "
     input <- getLine
     let result = parse (P.try wallParser <|> exitParser) input
     case result of
