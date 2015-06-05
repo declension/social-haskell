@@ -12,4 +12,5 @@ executable social-haskell
                    containers,
                    text,
                    either-unwrap,
-                   transformers
+                   transformers,
+                   time >= 1.5

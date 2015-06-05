@@ -5,37 +5,53 @@ import           Data.Maybe
 import qualified Data.Foldable as Foldable (mapM_)
 import           Data.List (find, delete)
 import           Data.Functor.Identity (runIdentity)
+import           Data.Time.Clock (UTCTime)
+import           Data.Time (getCurrentTime, formatTime)
+import           Data.Time.Format
 
 import           Control.Applicative
 import           Control.Monad (unless)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.State (State, get, put, runState)
 import qualified Text.Parsec as P
+import           Text.Printf (printf)
 
 -- Get the Identity monad from here:
 import Control.Monad.Identity()
 
+data Message = Message { text :: String, timestamp :: UTCTime}
+    deriving (Eq, Ord)
+instance Show Message where
+    show m = printf "\"%s\" @ %s" (text m) (show $ formatTime defaultTimeLocale "%H:%M:%S on %Y-%m-%d " $ timestamp m)
+
+
 data User = User {
           name       :: String
-        , posts      :: [String]
+        , posts      :: [Message]
         , following  :: [User]
-        } deriving (Eq, Ord, Show)
+        } deriving (Eq, Ord)
 newUser = User {name=undefined, posts=[], following=[]}
+
+instance Show User where
+    show u = printf "<%s with %d post(s), following:%s>" (name u) (length $ posts u) (show $ following u)
 
 data Command = Post User String | Read User | Wall User
                | Follow User User | Debug | Exit
     deriving (Show, Eq)
 
 type Output = Maybe String
-type AppState = [User]
+type AppState = (UTCTime, [User])
 
 run :: Command -> State AppState Output
-run (Wall u)     = return $ Just $ ("WALL: for " ++ show u) ++ show (posts u)
+run (Wall user)     = do
+    let users = user : following user
+    let ps = map (\u -> map (\p -> (u,p)) $ posts u) users
+    return $ Just $ "WALL: " ++ show ps
 
 run (Read u)     = return $ Just $ show $ posts u
 run (Post u s)   = do
-    users <- get
-    put $ newUser{name = name u, posts = s : posts u} : delete u users
+    (now, users) <- get
+    put (now, newUser{name = name u, posts = Message s now : posts u} : delete u users)
     return Nothing
 run Debug        = do
     usrs <- get
@@ -55,14 +71,14 @@ whitespace = P.skipMany1 P.space
 -- Finds a valid, existing user (only!) by looking up the parsed name
 findUserParser :: ParserTo User
 findUserParser = do
-        users <- P.getState
+        (_, users) <- P.getState
         username <- P.choice [P.string (name u) | u <- users]
         return $ fromJust $ find (\u -> name u == username) users
 
 -- Finds or creates a user based on parsed username.
 findOrCreateUserParser :: ParserTo User
 findOrCreateUserParser = do
-        users <- P.getState
+        (_,users) <- P.getState
         username <- usernameParser
         let existing = find (\u -> name u == username) users
         return $ fromMaybe newUser{name=username} existing
@@ -93,12 +109,13 @@ process :: [User] -> IO ()
 process users = do
     putStr "> "
     input <- liftIO getLine
-    let result = runIdentity $ P.runParserT (commandParser <* P.spaces <* P.eof) users "" input
+    now <- getCurrentTime
+    let result = runIdentity $ P.runParserT (commandParser <* P.spaces <* P.eof) (now, users) "" input
     case result of
         Right command -> do
-            let (output, st') = runState (run command) users
+            let (output, (_, users')) = runState (run command) (now, users)
             Foldable.mapM_ putStrLn output
-            unless (command == Exit) $ process st'
+            unless (command == Exit) $ process users'
         Left err -> do
             liftIO $ putStrLn ("error: " ++ show err)
             process users
