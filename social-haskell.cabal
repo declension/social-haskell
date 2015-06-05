@@ -11,4 +11,5 @@ executable social-haskell
                    parsec,
                    containers,
                    text,
-                   either-unwrap
+                   either-unwrap,
+                   transformers
