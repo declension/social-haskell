@@ -3,14 +3,14 @@ module Main where
 import           System.IO
 import           Data.Maybe
 import qualified Data.Foldable as Foldable (mapM_)
-import           Control.Monad (unless,liftM)
-import           Control.Monad.Trans.State
+import           Data.List (find, delete)
+import           Data.Functor.Identity (runIdentity)
+
+import           Control.Applicative
+import           Control.Monad (unless, liftM)
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Trans.State (State, get, put, runState)
 import qualified Text.Parsec as P
--- The error message infix operator
-import Text.Parsec ((<?>))
-import Control.Applicative
-import Control.Monad.IO.Class (liftIO)
-import Data.List (find, delete)
 
 -- Get the Identity monad from here:
 import Control.Monad.Identity()
@@ -26,7 +26,7 @@ data User = User {
 newUser = User {name=undefined, posts=[], following=[]}
 
 data Command = Post User String | Read User | Wall User
-               | Follow User User | Exit
+               | Follow User User | Debug | Exit
     deriving (Show, Eq)
 
 type Output = Maybe String
@@ -38,19 +38,18 @@ run (Wall u)     = return $ Just $ ("WALL: for " ++ show u) ++ show (posts u)
 run (Read u)     = return $ Just $ show $ posts u
 run (Post u s)   = do
     users <- get
-    -- Remove user u
-    -- add updated user u
     put $ newUser{name = name u, posts = s : posts u} : delete u users
-    return $ Just $ show $ s : posts u
+    return Nothing
+run Debug = do
+    usrs <- get
+    return $ Just $ "Users: " ++ show usrs
 run c            = return $ Just ("Processing command: " ++ show c)
 
-users :: [User]
-users = [newUser{ name="Alice" }]
 --users = []
 
 -- Convenience definition, that also reads nicely
 --type ParserTo = P.ParsecT String () (State AppState)
-type ParserTo = P.ParsecT String () (State AppState)
+type ParserTo = P.Parsec String AppState
 
 -- Convenience definitions
 usernameParser :: ParserTo String
@@ -60,12 +59,14 @@ whitespace = P.skipMany1 P.space
 -- Finds a valid, existing user (only!) by looking up the parsed name
 findUserParser :: ParserTo User
 findUserParser = do
+        users <- P.getState
         username <- P.choice [P.string (name u) | u <- users]
         return $ fromJust $ find (\u -> name u == username) users
 
 -- Finds or creates a user based on parsed username.
 findOrCreateUserParser :: ParserTo User
 findOrCreateUserParser = do
+        users <- P.getState
         username <- usernameParser
         let existing = find (\u -> name u == username) users
         return $ fromMaybe newUser{name=username} existing
@@ -75,6 +76,9 @@ wallParser = Wall <$> findUserParser <* whitespace <* P.string "wall"
 
 readParser :: ParserTo Command
 readParser = Read <$> findUserParser
+
+debugParser :: ParserTo Command
+debugParser = Debug <$ P.string "debug"
 
 postParser :: ParserTo Command
 postParser = do
@@ -87,25 +91,25 @@ exitParser :: ParserTo Command
 exitParser = Exit <$ (P.string "exit" <|> P.string "quit")
 
 commandParser :: ParserTo Command
-commandParser = P.choice $ map P.try [exitParser, postParser, wallParser, readParser]
+commandParser = P.choice $ map P.try [exitParser, postParser, wallParser, readParser, debugParser]
 
 process :: [User] -> IO ()
 process users = do
     putStr "> "
     input <- liftIO getLine
-    let (result, st) = runState (P.runParserT (commandParser <* P.spaces <* P.eof) () "" input) users
+    let result = runIdentity $ P.runParserT (commandParser <* P.spaces <* P.eof) users "" input
     case result of
         Right command -> do
-            let (output, st') = runState (run command) st
+            let (output, st') = runState (run command) users
             Foldable.mapM_ putStrLn output
             unless (command == Exit) $ process st'
         Left err -> do
             liftIO $ putStrLn ("error: " ++ show err)
-            process st
+            process users
 
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
     --runState redirect $ liftIO users
-    process users
+    process []
     return ()
