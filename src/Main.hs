@@ -7,16 +7,13 @@ import           Data.List (find, delete)
 import           Data.Functor.Identity (runIdentity)
 
 import           Control.Applicative
-import           Control.Monad (unless, liftM)
+import           Control.Monad (unless)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.State (State, get, put, runState)
 import qualified Text.Parsec as P
 
 -- Get the Identity monad from here:
 import Control.Monad.Identity()
-
--- alias Parsec.parse for more concise usage:
-parse rule = P.parse rule "(input)"
 
 data User = User {
           name       :: String
@@ -40,12 +37,11 @@ run (Post u s)   = do
     users <- get
     put $ newUser{name = name u, posts = s : posts u} : delete u users
     return Nothing
-run Debug = do
+run Debug        = do
     usrs <- get
     return $ Just $ "Users: " ++ show usrs
 run c            = return $ Just ("Processing command: " ++ show c)
 
---users = []
 
 -- Convenience definition, that also reads nicely
 --type ParserTo = P.ParsecT String () (State AppState)
@@ -110,6 +106,4 @@ process users = do
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
-    --runState redirect $ liftIO users
     process []
-    return ()
