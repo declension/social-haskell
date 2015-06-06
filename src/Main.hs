@@ -6,8 +6,8 @@ import qualified Data.Foldable as Foldable (mapM_)
 import           Data.List (find, delete)
 import           Data.Functor.Identity (runIdentity)
 import           Data.Time.Clock (UTCTime)
-import           Data.Time (getCurrentTime, formatTime)
-import           Data.Time.Format
+import           Data.Time (getCurrentTime, diffUTCTime)
+import           Data.Time.Format (formatTime, defaultTimeLocale)
 
 import           Control.Applicative
 import           Control.Monad (unless)
@@ -40,13 +40,23 @@ data Command = Post User String | Read User | Wall User
     deriving (Show, Eq)
 
 type Output = Maybe String
+-- Pass around state both in our parser (kind of) and in the execution of commands
 type AppState = (UTCTime, [User])
+
+
+-- Pretty prints time deltas
+ago:: UTCTime -> Message -> String
+ago now m = show $ diffUTCTime now $ timestamp m
+
+formatWall :: UTCTime -> (User, Message) -> String
+formatWall now (u, m) = printf "%s - %s (%s ago)" (name u) (text m) (ago now m)
 
 run :: Command -> State AppState Output
 run (Wall user)     = do
+    (now, _) <- get
     let users = user : following user
-    let ps = map (\u -> map (\p -> (u,p)) $ posts u) users
-    return $ Just $ "WALL: " ++ show ps
+    let ps = concatMap (\u -> map (\m -> (u, m)) $ posts u) users
+    return $ Just $ unlines $ map (formatWall now) ps
 
 run (Read u)     = return $ Just $ show $ posts u
 run (Post u s)   = do
@@ -102,9 +112,11 @@ postParser = do
 exitParser :: ParserTo Command
 exitParser = Exit <$ (P.string "exit" <|> P.string "quit")
 
+-- The uber-parser
 commandParser :: ParserTo Command
 commandParser = P.choice $ map P.try [exitParser, postParser, wallParser, readParser, debugParser]
 
+-- Main loop, taking (initial) state and running commands over this
 process :: [User] -> IO ()
 process users = do
     putStr "> "
