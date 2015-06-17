@@ -17,20 +17,26 @@ import           Domain
 
 
 run :: Command -> State AppState Output
+
 run (Wall user)     = do
     (now, _) <- get
     let users = user : following user
     let ps = concatMap (\u -> map (\m -> (u, m)) $ posts u) users
     return $ Just $ unlines $ map (formatWall now) ps
 
-run (Read u)     = return $ Just $ show $ posts u
+run (Read u)     = do
+    (now, _) <- get
+    return $ Just $ unlines $ map (formatPost now) $ posts u
+
 run (Post u s)   = do
     (now, users) <- get
     put (now, newUser{name = name u, posts = Message s now : posts u} : delete u users)
     return Nothing
+
 run Debug        = do
     usrs <- get
     return $ Just $ "Users: " ++ show usrs
+
 run c            = return $ Just ("Processing command: " ++ show c)
 
 

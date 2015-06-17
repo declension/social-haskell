@@ -37,3 +37,5 @@ ago now m = show $ diffUTCTime now $ timestamp m
 formatWall :: UTCTime -> (User, Message) -> String
 formatWall now (u, m) = printf "%s - %s (%s ago)" (name u) (text m) (ago now m)
 
+formatPost :: UTCTime -> Message -> String
+formatPost now m = printf "%s (%s ago)" (text m) (ago now m)

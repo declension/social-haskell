@@ -28,4 +28,5 @@ test-suite behaviour-tests
     main-is:            Main.hs
     build-depends:      base,
                         hspec == 2.*,
+                        time > 1.5,
                         social-haskell
