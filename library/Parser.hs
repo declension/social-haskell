@@ -37,6 +37,11 @@ wallParser = Wall <$> findUserParser <* whitespace <* P.string "wall"
 readParser :: ParserTo Command
 readParser = Read <$> findUserParser
 
+followParser :: ParserTo Command
+followParser = Follow <$> findUserParser
+                      <*  whitespace <* P.string "follows" <* whitespace
+                      <*> findUserParser
+
 debugParser :: ParserTo Command
 debugParser = Debug <$ P.string "debug"
 
@@ -52,4 +57,4 @@ exitParser = Exit <$ (P.string "exit" <|> P.string "quit")
 
 -- The uber-parser
 commandParser :: ParserTo Command
-commandParser = P.choice $ map P.try [exitParser, postParser, wallParser, readParser, debugParser]
+commandParser = P.choice $ map P.try [exitParser, followParser, postParser, wallParser, readParser,  debugParser]

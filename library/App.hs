@@ -33,6 +33,11 @@ run (Post u s)   = do
     put (now, newUser{name = name u, posts = Message s now : posts u} : delete u users)
     return Nothing
 
+run (Follow u followed) = do
+    (now, users) <- get
+    put (now, newUser{name = name u, posts = posts u, following = followed : following u} : delete u users)
+    return Nothing
+
 run Debug        = do
     usrs <- get
     return $ Just $ "Users: " ++ show usrs
