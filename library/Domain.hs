@@ -1,6 +1,6 @@
 module Domain where
 import           Text.Printf (printf)
-import           Data.Time (diffUTCTime)
+import           Data.Time (diffUTCTime, NominalDiffTime)
 import           Data.Time.Format (formatTime, defaultTimeLocale)
 import           Data.Time.Clock (UTCTime)
 
@@ -32,11 +32,25 @@ instance Show User where
 
 
 -- Pretty prints time deltas
-ago:: UTCTime -> Message -> String
-ago now m = show $ diffUTCTime now $ timestamp m
+ago :: UTCTime -> UTCTime -> String
+--ago now m = show $ diffUTCTime now $ timestamp m
+ago now ts
+    | secs  < 1 = "just now"
+    | mins  < 1 = numFor secs "second"
+    | hours < 1 = numFor mins "minute"
+    | days  < 1 = numFor hours "hour"
+    | otherwise = numFor days "day"
+    where secs   = realToFrac $ diffUTCTime now ts
+          mins   = secs / 60
+          hours  = mins / 60
+          days   = hours / 24
+
+numFor :: NominalDiffTime -> String -> String
+numFor n s = printf "%d %s%s ago" intN s (if intN == 1 then "" else "s")
+             where intN = round (realToFrac n) :: Integer
 
 formatWall :: UTCTime -> (User, Message) -> String
-formatWall now (u, m) = printf "%s - %s (%s ago)" (name u) (text m) (ago now m)
+formatWall now (u, m) = printf "%s - %s (%s)" (name u) (text m) (ago now $ timestamp m)
 
 formatPost :: UTCTime -> Message -> String
-formatPost now m = printf "%s (%s ago)" (text m) (ago now m)
+formatPost now m = printf "%s (%s)" (text m) (ago now $ timestamp m)
