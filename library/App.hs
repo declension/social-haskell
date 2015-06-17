@@ -1,17 +1,15 @@
 module App where
-import           Data.List (delete)
+import           Data.List (delete, sortBy)
+import           Data.Function (on)
 import           Data.Time (getCurrentTime)
 import           Control.Monad.Trans.State (State, get, put, runState)
---import           Text.Printf (printf)
 import           Control.Monad (unless)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Applicative
 import           Data.Functor.Identity (runIdentity)
 import qualified Data.Foldable as Foldable (mapM_)
 import qualified Text.Parsec as P
--- Get the Identity monad from here:
-import Control.Monad.Identity()
-
+import           Control.Monad.Identity()
 import           Parser
 import           Domain
 
@@ -21,8 +19,9 @@ run :: Command -> State AppState Output
 run (Wall user)     = do
     (now, _) <- get
     let users = user : following user
-    let ps = concatMap (\u -> map (\m -> (u, m)) $ posts u) users
-    return $ Just $ unlines $ map (formatWall now) ps
+    let sorted = sortBy (flip compare `on` (timestamp . snd)) ps
+                 where ps = concatMap (\u -> map (\m -> (u, m)) $ posts u) users
+    return $ Just $ unlines $ map (formatWall now) sorted
 
 run (Read u)     = do
     (now, _) <- get
@@ -30,12 +29,13 @@ run (Read u)     = do
 
 run (Post u s)   = do
     (now, users) <- get
-    put (now, newUser{name = name u, posts = Message s now : posts u} : delete u users)
+    put $ stateWithUpdatedUser now users u newUser{name = name u, posts = Message s now : posts u}
     return Nothing
 
 run (Follow u followed) = do
     (now, users) <- get
-    put (now, newUser{name = name u, posts = posts u, following = followed : following u} : delete u users)
+    let new = newUser{name = name u, posts = posts u, following = followed : following u}
+    put $ stateWithUpdatedUser now users u new
     return Nothing
 
 run Debug        = do
@@ -43,6 +43,9 @@ run Debug        = do
     return $ Just $ "Users: " ++ show usrs
 
 run c            = return $ Just ("Processing command: " ++ show c)
+
+stateWithUpdatedUser :: t -> [User] -> User -> User -> (t, [User])
+stateWithUpdatedUser now users u u' = (now, u' : delete u users)
 
 
 -- Main loop, taking (initial) state and running commands over this

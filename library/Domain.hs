@@ -9,6 +9,7 @@ data Command = Post User String | Read User | Wall User
     deriving (Show, Eq)
 
 type Output = Maybe String
+
 -- Pass around state both in our parser (kind of) and in the execution of commands
 type AppState = (UTCTime, [User])
 
