@@ -3,6 +3,8 @@ import           Text.Printf (printf)
 import           Data.Time (diffUTCTime, NominalDiffTime)
 import           Data.Time.Format (formatTime, defaultTimeLocale)
 import           Data.Time.Clock (UTCTime)
+import           Data.Map (Map, fromList)
+import           Data.List (find)
 
 data Command = Post User String | Read User | Wall User
                | Follow User User | Debug | Exit
@@ -10,25 +12,33 @@ data Command = Post User String | Read User | Wall User
 
 type Output = Maybe String
 
--- Pass around state both in our parser (kind of) and in the execution of commands
-type AppState = (UTCTime, [User])
-
-
 data Message = Message { text :: String, timestamp :: UTCTime}
     deriving (Eq, Ord)
 
 instance Show Message where
     show m = printf "\"%s\" @ %s" (text m) (formatTime defaultTimeLocale "%H:%M:%S on %Y-%m-%d " $ timestamp m)
 
+newtype UserId = UserId String deriving (Show, Eq, Ord)
+
 data User = User {
-          name       :: String
+          uid        :: UserId
+        , name       :: String
         , posts      :: [Message]
-        , following  :: [User]
         } deriving (Eq, Ord)
-newUser = User {name=undefined, posts=[], following=[]}
+newUser = User {name=undefined, uid=undefined, posts=[]}
+
+-- Allow following
+type Users = [User]
+type Following = Map UserId [UserId]
 
 instance Show User where
-    show u = printf "<%s with %d post(s), following:%s>" (name u) (length $ posts u) (show $ following u)
+    show u = printf "<%s with %d post(s)>" (name u) (length $ posts u)
+
+-- Pass around state both in our parser (kind of) and in the execution of commands
+data AppState = AppState {getStateTime :: UTCTime, getStateUsers :: Users, getStateFollowing :: Following}
+
+userById :: Users -> UserId -> Maybe User
+userById users x = find ((==x) . uid) users
 
 
 -- Pretty prints time deltas

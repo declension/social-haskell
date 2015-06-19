@@ -19,17 +19,17 @@ whitespace = P.skipMany1 P.space
 -- Finds a valid, existing user (only!) by looking up the parsed name
 findUserParser :: ParserTo User
 findUserParser = do
-        (_, users) <- P.getState
+        AppState _ users _ <- P.getState
         username <- P.choice [P.string (name u) | u <- users]
         return $ fromJust $ find (\u -> name u == username) users
 
 -- Finds or creates a user based on parsed username.
 findOrCreateUserParser :: ParserTo User
 findOrCreateUserParser = do
-        (_,users) <- P.getState
+        AppState _ users _ <- P.getState
         username <- usernameParser
         let existing = find (\u -> name u == username) users
-        return $ fromMaybe newUser{name=username} existing
+        return $ fromMaybe newUser{name=username, uid=UserId username} existing
 
 wallParser :: ParserTo Command
 wallParser = Wall <$> findUserParser <* whitespace <* P.string "wall"

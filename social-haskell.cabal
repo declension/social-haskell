@@ -19,7 +19,7 @@ library
 executable social-haskell
     main-is:            Main.hs
     hs-source-dirs:     src
-    build-depends:      base, social-haskell
+    build-depends:      base, time >= 1.5, social-haskell
 
 test-suite behaviour-tests
     type:               exitcode-stdio-1.0

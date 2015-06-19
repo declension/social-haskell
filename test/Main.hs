@@ -4,7 +4,7 @@ import Test.Hspec
 import Domain
 import           Data.Time (getCurrentTime, addUTCTime, UTCTime)
 
-alice = newUser{name="Alice"}
+alice = newUser{name="Alice", uid=UserId "1234"}
 
 testMessageAt :: UTCTime -> Message
 testMessageAt ts = Message{text="Hello, world!", timestamp=ts}
