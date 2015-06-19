@@ -1,8 +1,10 @@
 module Main where
 
-import Test.Hspec
-import Domain
+import           Test.Hspec
 import           Data.Time (getCurrentTime, addUTCTime, UTCTime)
+
+import           Domain
+import           App
 
 alice = newUser{name="Alice", uid=UserId "1234"}
 
@@ -51,6 +53,27 @@ spec = describe "tests" $ do
         let earlier = (60 * 60 * 24 * 3) `addUTCTime` now
         ago earlier now `shouldBe` "3 days ago"
 
+    it "Post integration test" $ do
+        now <- getCurrentTime
+        let (out, Just ms) = process (emptyState now) "Alice -> I love the weather today"
+        out `shouldBe` Nothing
+        getStateUsers ms `shouldBe` [User{name="Alice",
+                                          posts=[Message {text="I love the weather today", timestamp=now}],
+                                          uid=UserId "Alice"}]
+
+    it "Following and wall integration test" $ do
+        now <- getCurrentTime
+        let (_, Just (AppState _ u f)) = process (emptyState now) "Alice -> I love the weather today"
+        let (_, Just (AppState _ u2 f2)) = process st "Charlie -> I'm in New York today! Anyone want to have a coffee?"
+                                           where st = AppState ((60 * 5) `addUTCTime` now) u f
+
+        let newTime = (60 * 5 + 2) `addUTCTime` now
+        let (_, Just (AppState _ u3 f3)) = process st "Charlie follows Alice"
+                                           where st = AppState newTime u2 f2
+        let (Just out, _) = process st "Charlie wall"
+                            where st = AppState newTime u3 f3
+        out `shouldContain` "Alice - I love the weather today (5 minutes ago)"
+        out `shouldContain` "Charlie - I'm in New York today! Anyone want to have a coffee? (2 seconds ago)"
 
 main :: IO ()
 main = hspec spec

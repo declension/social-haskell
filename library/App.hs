@@ -59,19 +59,23 @@ stateWithUpdatedUser :: UTCTime -> Users -> User -> User -> Following -> AppStat
 stateWithUpdatedUser now users u u' = AppState now (u' : delete u users)
 
 
+-- Takes a command, parses and runs it to return an output and updated state (IO-free)
+process :: AppState -> String -> (Output, Maybe AppState)
+process state input = do
+    let result = runIdentity $ P.runParserT (commandParser <* P.spaces <* P.eof) state "" input
+    case result of
+        Right Exit -> (Just "Goodbye!", Nothing)
+        Right command -> (out, Just state')
+                         where (out, state') = runState (run command) state
+        Left err -> (Just $ "error: " ++ show err, Just state)
+
 -- Main loop, taking (initial) state and running commands over this
-process :: AppState -> IO ()
-process (AppState _ users fols) = do
+loop :: AppState -> IO ()
+loop (AppState _ u f) = do
     putStr "> "
     input <- liftIO getLine
     now <- getCurrentTime
-    let newState = AppState now users fols
-    let result = runIdentity $ P.runParserT (commandParser <* P.spaces <* P.eof) newState "" input
-    case result of
-        Right command -> do
-            let (output, AppState _ users' fols') = runState (run command) newState
-            Foldable.mapM_ putStrLn output
-            unless (command == Exit) $ process (AppState now users' fols')
-        Left err -> do
-            liftIO $ putStrLn ("error: " ++ show err)
-            process newState
+    let (output, maybeState) = process (AppState now u f) input
+    Foldable.mapM_ putStrLn output
+    Foldable.mapM_ loop maybeState
+    return ()

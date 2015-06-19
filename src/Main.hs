@@ -1,11 +1,11 @@
 module Main where
 
 import           System.IO
-import           App
 import           Data.Time (getCurrentTime)
+import           App
 
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
     ts <- getCurrentTime
-    process $ emptyState ts
+    loop (emptyState ts)
